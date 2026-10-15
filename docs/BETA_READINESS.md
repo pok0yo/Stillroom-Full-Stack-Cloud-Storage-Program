@@ -1,5 +1,9 @@
 # Stillroom private-beta readiness
 
+## Portfolio scope supersedes beta completion gates — 2026-10-15
+
+The operator explicitly deferred hosted beta operations and public deployment. Do not develop more beta administration, hosting, Firewall or policy systems to finish this portfolio application. [PORTFOLIO_ACCEPTANCE.md](PORTFOLIO_ACCEPTANCE.md) is the finite release checklist. The older operating gates below remain historical/future-hosted considerations, not an endless portfolio prerequisite. Existing main publication completed at a2c1d774d7d667b72080ad9f4499bad9a41da510; this local acceptance-fix phase awaits a separately approved commit/tag/source release. Notices remain unpublished, publication manifest null, terms enforcement disabled and cleanup boundaries unchanged. No Appwrite mutation or deployment occurred.
+
 ## Source publication review — 2026-10-15 (latest)
 
 The existing public GitHub main and local main share the single genuine README-only commit. The current implementation is uncommitted; preserve that ancestor and propose one accurately dated current-source commit, not a manufactured development history. Inspection found no known-secret or personal-test-address match in the proposed source/history. Use GitHub no-reply metadata for the new commit. Private records/environment/browser state/build output, live-account screenshots and unpublished notice candidates stay excluded. Detailed candidate evidence remains ignored locally. Commit/push awaits the user's go; refresh remote/candidate state first.

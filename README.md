@@ -2,7 +2,7 @@
 
 A restrained, private cloud file library built in the root of this repository. A monochrome editorial interface, generous pastel panels, and deliberately limited sharing keep the interface focused on finding and keeping files.
 
-This is a local portfolio project, not a hosted service. The invitation-only migration and bounded live access-control and account-exit protocols passed against Appwrite. The app is not deployed or ready for external beta invitations; see the current [beta-readiness checklist](docs/BETA_READINESS.md) and [verification evidence](docs/VERIFICATION.md). Publishing this source does not establish production readiness.
+This is a local portfolio project, not a hosted service. The invitation-only migration and bounded live access-control and account-exit protocols passed against Appwrite. Hosted beta operation and public deployment are deferred. The finite [portfolio acceptance checklist](docs/PORTFOLIO_ACCEPTANCE.md) separates this release from that future work; [verification](docs/VERIFICATION.md) records evidence and limits. Publishing this source does not establish production readiness.
 
 ## What is implemented
 
@@ -23,6 +23,10 @@ Supported: PDF, UTF-8 TXT/CSV, JPEG/PNG/WebP, MP3/WAV and MP4/WebM. Maximum uplo
 Read [the setup guide](docs/SETUP.md) before installing dependencies or creating resources. After installation is approved, use Node 24, `npm ci`, and `npm run dev -- --hostname 127.0.0.1`; open `http://localhost:3000` to match the example origin. Copy `.env.example` to untracked `.env.local` and configure your own approved Appwrite project. Without configuration, the application shows a setup screen rather than fictional data. Nothing creates cloud resources on startup. A configured local demonstration still uses Appwrite Cloud; it is not an offline backend.
 
 `scripts/setup.ts` prints a dry-run schema by default. Applying it requires approval and `--apply`. No credentials are committed. See [verification status](docs/VERIFICATION.md) for what has actually been checked.
+
+To inspect the real workspace UI without credentials, an Appwrite project or a running server, use `npm run test:e2e -- tests/browser/workspace.spec.ts` after installing the documented dependencies and having a supported browser available. This is a clearly simulated HTTP fixture, not an offline backend or a substitute for live authorization evidence. It saves screenshots under ignored `test-results/`. The default browser channel is Microsoft Edge; see setup for alternatives. No browser or dependency is downloaded by this command.
+
+A fresh checkout creates its own private coordination/eligibility records as documented; it must not copy the operator's ignored records. Signup alone does not grant admission. Limiter cleanup and historical case commands intentionally require private evidence not distributed with this source and are not necessary to browse files. The setup guide distinguishes a read-only UI inspection from connecting an independently configured backend.
 
 ## Architecture and security
 
@@ -47,3 +51,7 @@ For a factual portfolio narrative, see [the case-study draft](docs/CASE_STUDY.md
 ## Design implementation
 
 The supplied DESIGN-figma.md is adapted to the application: black/white controls, pill CTAs, a lime storage panel, lilac authentication panel, large sans-serif headings, and mono labels. The desktop sidebar remains; mobile navigation uses a full-canvas native dialog. System font fallbacks avoid proprietary font downloads. See [design notes](docs/DESIGN_IMPLEMENTATION.md) and the included synthetic UI screenshots. Live-account screenshots, private records, real environment files and unpublished notice drafts are excluded from publication.
+
+## License
+
+Stillroom's own source is available under the [MIT License](LICENSE), approved by the operator. Dependencies retain their own licenses; optional image-processing binaries include LGPL components. See [third-party credits and distribution boundaries](THIRD_PARTY_NOTICES.md). This source release does not distribute node_modules or application binaries.

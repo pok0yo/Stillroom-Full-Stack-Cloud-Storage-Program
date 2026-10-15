@@ -16,3 +16,32 @@ test('protected API requires a session', async ({ request }) => {
   expect((await request.get('/api/files')).status()).toBe(401);
   expect((await request.get('/api/overview')).status()).toBe(401);
 });
+
+test('unconfigured public routes: accessibility tree, keyboard and 320px reflow', async ({ page }) => {
+  const external: string[] = [];
+  const origin = new URL(test.info().project.use.baseURL!).origin;
+  await page.route('**/*', route => {
+    const url = new URL(route.request().url());
+    if (url.origin !== origin) { external.push(url.origin); return route.abort(); }
+    return route.continue();
+  });
+  await page.addInitScript({ path: require.resolve('axe-core/axe.min.js') });
+  for (const route of ['/', '/login', '/verify', '/privacy', '/terms']) {
+    await page.goto(route);
+    await expect(page.getByRole('main')).toBeVisible();
+    for (const width of [1440, 320]) {
+      await page.setViewportSize({ width, height: 900 });
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      const violations = await page.evaluate(async () => (await (window as typeof window & { axe: typeof import('axe-core') }).axe.run(document, { runOnly: { type: 'tag', values: ['wcag2a', 'wcag2aa', 'wcag21aa', 'wcag22aa'] } })).violations.map(v => ({ id: v.id, count: v.nodes.length })));
+      expect(violations, `${route} at ${width}px`).toEqual([]);
+    }
+  }
+  await page.goto('/login');
+  await page.keyboard.press('Tab'); await expect(page.getByRole('link', { name: 'Skip to content' })).toBeFocused();
+  await page.getByLabel('Email address').focus(); await page.keyboard.press('Tab');
+  await expect(page.getByLabel('Password', { exact: true })).toBeFocused();
+  expect(await page.getByLabel('Password', { exact: true }).evaluate(el => getComputedStyle(el).outlineStyle)).not.toBe('none');
+  expect(await page.getByRole('main').ariaSnapshot()).toContain('textbox "Email address"');
+  await page.screenshot({ path: 'test-results/portfolio-login-320.png', fullPage: true });
+  expect(external).toEqual([]);
+});

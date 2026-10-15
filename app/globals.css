@@ -43,7 +43,7 @@ small { font-size: 12px; }
 .topbar { min-height: 104px; border-bottom: 1px solid var(--line); display: flex; align-items: center; justify-content: space-between; gap: 24px; }
 .topbar form { display: flex; gap: 8px; width: min(100%, 400px); }
 .topbar input { min-width: 0; flex: 1; border-radius: 50px; }
-input, select { min-height: 48px; padding: 12px 14px; border: 1px solid #999; border-radius: 8px; background: var(--canvas); max-width: 100%; }
+input, select { min-height: 48px; padding: 12px 14px; border: 1px solid #767676; border-radius: 8px; background: var(--canvas); max-width: 100%; }
 input::placeholder { color: #000; opacity: .7; }
 .page-heading { display: flex; align-items: center; justify-content: space-between; gap: 24px; margin: 48px 0; }
 .page-heading .eyebrow { margin-bottom: 24px; }
