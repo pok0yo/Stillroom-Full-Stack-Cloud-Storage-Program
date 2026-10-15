@@ -1,0 +1,20 @@
+{
+  "contract": "../DESIGN_IMPLEMENTATION.md: functional storage UI; monochrome chrome, lime overview, lilac auth, pill actions, mobile dialog navigation; actual components with test-only HTTP fixtures.",
+  "targetViewports": ["1440x1050", "390x844", "320x800"],
+  "accessibility": {"status":"pass","evidence":"Local browser checks confirmed dialog Escape and focus restoration, labeled controls, visible focus, escaped text and zero transitions under reduced motion. Black text on the documented light surfaces. This is not a formal WCAG audit."},
+  "responsive": {"status":"pass","evidence":"Desktop and mobile screenshots inspected; automated scrollWidth checks at 390 and 320 pixels confirmed no horizontal overflow. Mobile navigation uses the existing native dialog."},
+  "contentStates": {
+    "loading": {"status":"pass","evidence":"Delayed fixture response displayed Opening your library until released."},
+    "empty": {"status":"pass","evidence":"Empty fixture displayed A fresh start and upload guidance."},
+    "error": {"status":"pass","evidence":"Rejected upload retained its failure message after library refresh, with a refresh action."},
+    "partial": {"status":"pass","evidence":"A failed totals response showed an explicit retry notice while the successful file list remained usable."},
+    "success": {"status":"pass","evidence":"A successful fixture upload displayed its filename and completion announcement separately from library loading."},
+    "permission": {"status":"pass","evidence":"A simulated 401 displayed the session-expired message and Sign in again link. Production anonymous API requests returned 401. Live provider enforcement is untested.","historicalContext":"Original pre-cloud fixture evidence, retained unchanged. The final sentence describes that earlier run only. Subsequent live provider checks are recorded separately in ../VERIFICATION.md; they do not change this fixture's scope."}
+  },
+  "renderedEvidence": [
+    {"viewport":"1440x1050","artifact":"workspace-desktop.png","observation":"Monochrome sidebar and controls, large lime storage panel and white type summary cards; test data only."},
+    {"viewport":"390x844","artifact":"workspace-mobile.png","observation":"Full-width lime panel, two-column type summaries and visible Menu and Upload controls."},
+    {"viewport":"320x800","artifact":"upload-error-320.png","observation":"Narrow layout preserves file controls and readable upload-failure message without horizontal overflow."},
+    {"viewport":"390x844","artifact":"login-mobile.png","observation":"Production sign-up page uses lilac story panel, labeled inputs and explicit unconfigured state."}
+  ]
+}

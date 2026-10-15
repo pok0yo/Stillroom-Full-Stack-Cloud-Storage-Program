@@ -1,0 +1,18 @@
+node_modules/
+.next/
+.next-logging-check/
+.private/
+out/
+.env*
+!.env.example
+*.tsbuildinfo
+playwright-report/
+test-results/
+.auth/
+playwright/.auth/
+storage-state*.json
+*.log
+# Preserve live evidence and unpublished notice candidates locally.
+docs/live-evidence/
+docs/PRIVACY_NOTICE_DRAFT.md
+docs/BETA_NOTICE_DRAFT.md

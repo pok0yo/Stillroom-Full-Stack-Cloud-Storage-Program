@@ -1,0 +1,97 @@
+import './local-environment';
+import test, { mock } from 'node:test';
+import assert from 'node:assert/strict';
+import { AppwriteException, Storage, TablesDB, Users } from 'node-appwrite';
+import { accessible, dashboard, listFiles, mutate, remove, upload } from '../lib/files';
+import { client, session } from '../lib/appwrite';
+import type { FileRecord } from '../lib/domain';
+import { noticePublication } from '../lib/notice-content';
+import { acceptTerms, publishedNotices } from '../lib/terms';
+Object.assign(process.env, { APP_ORIGIN: 'http://localhost:3000', APPWRITE_ENDPOINT: 'https://example.invalid/v1', APPWRITE_PROJECT_ID: 'test', APPWRITE_API_KEY: 'test-only', APPWRITE_DATABASE_ID: 'test', APPWRITE_BUCKET_ID: 'test', RATE_LIMIT_SECRET: 'test-only-secret-not-for-production-1234' });
+type Row = Record<string, unknown> & { $id: string; $createdAt: string; $permissions: string[] };
+type Params = { tableId: string; rowId: string; data?: Record<string, unknown>; permissions?: string[]; transactionId?: string; queries?: string[] };
+type Auth = Awaited<ReturnType<typeof session>>;
+test('file service contract: lifecycle, isolation, sharing, totals, pagination and partial failures', async () => {
+  let rows = new Map<string, Row>();
+  const staged = new Map<string, Map<string, Row>>(); const blobs = new Map<string, Buffer>();
+  const dbUser = new WeakMap<object, string>(); let failDelete = false; let failUpload = false; let failCommit = false;
+  const missing = () => new AppwriteException('not found', 404);
+  const source = (p: Params) => p.transactionId ? staged.get(p.transactionId)! : rows;
+  const key = (p: Params) => `${p.tableId}:${p.rowId}`;
+  const get = (p: Params) => { const r = source(p).get(key(p)); if (!r) throw missing(); return structuredClone(r); };
+  const readable = (instance: object, r: Row) => { const user = dbUser.get(instance); if (user && !r.$permissions.includes(`read("user:${user}")`)) throw missing(); };
+  mock.method(TablesDB.prototype, 'createRow', async (p: Params) => { if (source(p).has(key(p))) throw new AppwriteException('conflict', 409); const r = { ...p.data, $id: p.rowId, $createdAt: new Date().toISOString(), $permissions: p.permissions ?? [] }; source(p).set(key(p), r); return structuredClone(r); });
+  mock.method(TablesDB.prototype, 'getRow', async function (this: TablesDB, p: Params) { const r = get(p); readable(this, r); return r; });
+  mock.method(TablesDB.prototype, 'updateRow', async (p: Params) => { const r = { ...get(p), ...p.data, ...(p.permissions ? { $permissions: p.permissions } : {}) }; source(p).set(key(p), r); return r; });
+  mock.method(TablesDB.prototype, 'deleteRow', async (p: Params) => { if (!source(p).delete(key(p))) throw missing(); return {}; });
+  mock.method(TablesDB.prototype, 'createTransaction', async () => { const id = `tx${staged.size}`; staged.set(id, structuredClone(rows)); return { $id: id }; });
+  mock.method(TablesDB.prototype, 'updateTransaction', async (p: { transactionId: string; commit?: boolean }) => { if (p.commit) { if (failCommit) throw new AppwriteException('conflict', 409); rows = staged.get(p.transactionId)!; } return {}; });
+  mock.method(TablesDB.prototype, 'listRows', async function (this: TablesDB, p: Params) {
+    const queries = (p.queries ?? []).map(q => JSON.parse(q));
+    let result = [...rows.entries()].filter(([k]) => k.startsWith(`${p.tableId}:`)).map(([, r]) => r).filter(r => { try { readable(this, r); return true; } catch { return false; } });
+    for (const q of queries) {
+      if (q.method === 'equal') result = result.filter(r => q.values.includes(r[q.attribute]));
+      if (q.method === 'contains') result = result.filter(r => Array.isArray(r[q.attribute]) ? q.values.every((v: string) => (r[q.attribute] as string[]).includes(v)) : String(r[q.attribute]).includes(q.values[0]));
+    }
+    const orders = queries.filter(q => q.method === 'orderAsc' || q.method === 'orderDesc');
+    result.sort((a, b) => { for (const q of orders) { const av = a[q.attribute] as string | number; const bv = b[q.attribute] as string | number; const order = av < bv ? -1 : av > bv ? 1 : 0; if (order) return q.method === 'orderDesc' ? -order : order; } return 0; });
+    const cursor = queries.find(q => q.method === 'cursorAfter'); if (cursor) result = result.slice(result.findIndex(r => r.$id === cursor.values[0]) + 1);
+    const limit = queries.find(q => q.method === 'limit'); assert.ok(limit && limit.values[0] <= 26, 'every query must be bounded');
+    return { rows: structuredClone(result.slice(0, limit.values[0])), total: result.length };
+  });
+  mock.method(Storage.prototype, 'createFile', async (p: { fileId: string; file: { size(): Promise<number>; slice(start: number, end: number): Promise<Uint8Array> }; permissions: string[] }) => { assert.deepEqual(p.permissions, []); if (failUpload) throw new Error('offline'); blobs.set(p.fileId, Buffer.from(await p.file.slice(0, await p.file.size()))); return {}; });
+  mock.method(Storage.prototype, 'deleteFile', async (p: { fileId: string }) => { if (failDelete) throw new Error('offline'); if (!blobs.delete(p.fileId)) throw missing(); return {}; });
+  function auth(id: string) { const db = new TablesDB(client()); dbUser.set(db, id); return { user: { $id: id }, db } as Auth; }
+  mock.method(Users.prototype, 'get', async ({userId}: {userId: string}) => ({ $id: userId, email: `${userId}@example.test`, status: true, emailVerification: true }));
+  for (const id of ['alice','bob','eve']) rows.set(`members:${id}`, { $id: id, $createdAt: '', $permissions: [], email: `${id}@example.test`, state: 'active' });
+  const alice = auth('alice'); const bob = auth('bob'); const eve = auth('eve');
+  try {
+    noticePublication.current = { effectiveDate: '2026-01-01', terms: 'Synthetic file terms', privacy: 'Synthetic privacy' };
+    await assert.rejects(upload(alice, 'blocked.txt', Buffer.from('hello')), { status: 403 });
+    await assert.rejects(listFiles(alice, new URLSearchParams()), { status: 403 });
+    await assert.rejects(dashboard(alice), { status: 403 });
+    await assert.rejects(accessible('anything', alice), { status: 403 });
+    await assert.rejects(mutate(alice, 'anything', { action: 'rename', name: 'x.txt' }), { status: 403 });
+    await assert.rejects(remove(alice, 'anything'), { status: 403 });
+    await acceptTerms('alice', { agree: true, version: publishedNotices()!.version });
+    const result = await upload(alice, 'memo.txt', Buffer.from('hello'));
+    assert.deepEqual(blobs.get(result.id), Buffer.from('hello'));
+    assert.equal((await dashboard(alice)).totals.documentBytes, 5);
+    await assert.rejects(accessible(result.id, bob)); await assert.rejects(accessible(result.id, eve));
+    await assert.rejects(mutate(alice, result.id, { action: 'share', recipient: 'bob' }), { status: 400 });
+    await acceptTerms('bob', { agree: true, version: publishedNotices()!.version });
+    await mutate(alice, result.id, { action: 'share', recipient: 'bob' });
+    assert.equal((await accessible(result.id, bob)).name, 'memo.txt');
+    noticePublication.current.terms += ' Updated.';
+    await assert.rejects(accessible(result.id, bob), { status: 403 }, 'download recheck denies outdated agreement');
+    await acceptTerms('alice', { agree: true, version: publishedNotices()!.version });
+    await mutate(alice, result.id, { action: 'revoke', recipient: 'bob' });
+    await acceptTerms('bob', { agree: true, version: publishedNotices()!.version });
+    await mutate(alice, result.id, { action: 'share', recipient: 'bob' });
+    await assert.rejects(bob.db.getRow({databaseId: 'test', tableId: 'files', rowId: result.id}));
+    rows.get('members:bob')!.state = 'suspended';
+    await assert.rejects(accessible(result.id, bob));
+    await assert.rejects(mutate(alice, result.id, {action: 'share', recipient: 'bob'}));
+    rows.get('members:bob')!.state = 'active';
+    await assert.rejects(mutate(bob, result.id, { action: 'rename', name: 'stolen.txt' })); await assert.rejects(remove(bob, result.id));
+    assert.equal((await listFiles(bob, new URLSearchParams('view=shared'))).items.length, 1);
+    await mutate(alice, result.id, { action: 'revoke', recipient: 'bob' }); await assert.rejects(accessible(result.id, bob));
+    await mutate(alice, result.id, { action: 'rename', name: 'renamed.txt' });
+    assert.equal((await listFiles(alice, new URLSearchParams('q=renamed&sort=name'))).items[0].name, 'renamed.txt');
+    failDelete = true; await assert.rejects(remove(alice, result.id));
+    assert.equal((await accessible(result.id, alice)).status, 'deleting'); assert.equal((await dashboard(alice)).totals.documentBytes, 0);
+    failDelete = false; await remove(alice, result.id); assert.equal(blobs.size, 0); await assert.rejects(accessible(result.id, alice));
+    failUpload = true; await assert.rejects(upload(alice, 'failed.txt', Buffer.from('hello'))); failUpload = false;
+    const pending = (await listFiles(alice, new URLSearchParams())).items.find(f => f.status === 'pending')!; assert.ok(pending); await assert.rejects(remove(alice, pending.$id));
+    failCommit = true; await assert.rejects(upload(alice, 'uncertain.txt', Buffer.from('hello'))); failCommit = false;
+    assert.equal((await dashboard(alice)).totals.documentBytes, 0); assert.equal(blobs.size, 1);
+    for (let i = 0; i < 28; i++) await upload(alice, `page-${String(i).padStart(2, '0')}.txt`, Buffer.from(String(i)));
+    const first = await listFiles(alice, new URLSearchParams('q=page-&sort=name')); assert.equal(first.items.length, 25); assert.ok(first.next);
+    const second = await listFiles(alice, new URLSearchParams(`q=page-&sort=name&cursor=${first.next}`)); assert.equal(second.items.length, 3); assert.equal(second.next, null);
+    assert.equal(new Set([...first.items, ...second.items].map(f => f.$id)).size, 28);
+    const sorted = await listFiles(alice, new URLSearchParams('q=page-&sort=size')); assert.equal(sorted.items[0].size, 2);
+    assert.equal((await dashboard(alice)).totals.documentCount, 28); assert.equal((await dashboard(bob)).totals.documentCount, 0);
+    for (const r of rows.values()) if ('owner' in r) assert.equal((r as unknown as FileRecord).owner, 'alice');
+  } finally { noticePublication.current = null; mock.restoreAll(); }
+});
+
